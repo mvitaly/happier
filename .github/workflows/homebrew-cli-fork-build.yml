@@ -1,0 +1,67 @@
+# Fork-only: builds the unsigned darwin-x64 CLI archive from this branch so it can be installed
+# through a local Homebrew tap. Not part of the upstream PR.
+name: Homebrew CLI fork build
+
+on:
+  push:
+    branches: [ci/homebrew-cli-build]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.repository == 'mvitaly/happier'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+      - name: Enable Corepack
+        uses: ./.github/actions/enable-corepack-yarn
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.4
+      - name: Resolve stable channel metadata
+        id: channel_meta
+        run: |
+          set -euo pipefail
+          node scripts/pipeline/release/resolve-public-release-channel-meta.mjs \
+            --channel stable \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Install dependencies
+        env:
+          YARN_PRODUCTION: "false"
+          npm_config_production: "false"
+          HAPPIER_UI_VENDOR_WEB_ASSETS: "0"
+          HAPPIER_EMBEDDED_POLICY_ENV: ${{ steps.channel_meta.outputs.embedded_policy_env }}
+        uses: ./.github/actions/install-yarn-dependencies
+        with:
+          args: --frozen-lockfile --ignore-engines --ignore-platform
+      - name: Run the tests this branch changed
+        run: |
+          set -euo pipefail
+          node --test scripts/pipeline/release/render-homebrew-packages.test.mjs
+          node --test scripts/release/release_homebrew_tap.workflow.contract.test.mjs
+          (cd apps/cli && npx vitest run --config vitest.config.ts src/cli/commands/self.updateBinaryInstall.test.ts)
+      - name: Build the darwin-x64 CLI archive
+        env:
+          MINISIGN_SECRET_KEY: ""
+          MINISIGN_PASSPHRASE: ""
+          HAPPIER_EMBEDDED_POLICY_ENV: ${{ steps.channel_meta.outputs.embedded_policy_env }}
+        run: |
+          set -euo pipefail
+          node scripts/pipeline/release/build-cli-binaries.mjs --channel stable --targets darwin-x64
+          ls -la dist/release-assets/cli
+          (cd dist/release-assets/cli && shasum -a 256 happier-v*-darwin-x64.tar.gz | tee "$GITHUB_STEP_SUMMARY")
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: happier-cli-darwin-x64
+          path: dist/release-assets/cli/happier-v*-darwin-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
