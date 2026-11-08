@@ -380,15 +380,21 @@ ownership, not verified publisher provenance — see
 ## Homebrew-owned CLIs
 
 Status: prepared, not published. `scripts/pipeline/release/render-homebrew-packages.mjs` renders
-the formula (tap `happier-dev/homebrew-tap`) and the cask (intended for `homebrew/cask`) from a
+the formula `happier-cli` (tap `happier-dev/homebrew-tap`) and the cask `happier` (intended for `homebrew/cask`) from a
 stable release's real assets and its signed `checksums-*.txt`.
 
 - The formula is a release product, never checked in. `release.yml` job `publish_homebrew_tap`
   renders it from the verified stable `cli-v<version>` release (the one this run promoted, or the
   one a resumed run's origin already promoted) and commits it to the tap. The job does nothing
   until the repository variable `HOMEBREW_TAP_REPO_NAME` is set.
-- The generator refuses CLI releases before `HOMEBREW_FORMULA_MIN_CLI_VERSION` (0.2.13), the first
-  whose `self update` and service launcher are correct under Homebrew. The 0.2.12 rendering is kept
+- **Name.** The formula is `happier-cli` (`HOMEBREW_FORMULA_NAME`), not `happier`: Homebrew derives
+  the cask's token from `Happier.app`, and a formula and cask sharing a token make a bare
+  `brew install happier` mean whichever the user's taps resolve first. The command is still
+  `happier`. The CLI recognises `Cellar/happier-cli/` and, for compatibility, `Cellar/happier/`
+  (`isHappierHomebrewFormula`).
+- The generator refuses CLI releases before `HOMEBREW_FORMULA_MIN_CLI_VERSION` (0.2.21), the first
+  that recognises a `happier-cli` keg, so its `self update` and service launcher are correct
+  under this formula (0.2.13 was the floor for the earlier `happier` name). The 0.2.12 rendering is kept
   only as a test fixture.
 - Happier requires macOS 13 (Ventura), from one owner: `HAPPIER_MIN_MACOS` in the generator
   renders `depends_on macos: :ventura` for the formula (inside `on_macos`) and the cask alike.
@@ -402,7 +408,7 @@ stable release's real assets and its signed `checksums-*.txt`.
   which `brew audit --online` would flag against `:ventura`.
 
 - **Layout.** The formula installs the unmodified `cli-v<version>` payload for darwin/linux ×
-  arm64/x64 into `Cellar/happier/<version>/libexec` (the compiled `happier` with its
+  arm64/x64 into `Cellar/happier-cli/<version>/libexec` (the compiled `happier` with its
   `package-dist`, `node_modules`, `tools` and `scripts`; `skip_clean` keeps Homebrew's cleaner out
   of it) and links `bin/happier` to it. The runtime root comes from `process.execPath`, which Bun
   resolves through the links to the real file in the keg, so the payload is found without the

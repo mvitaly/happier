@@ -174,13 +174,21 @@ describe('happier self update for binary installs', () => {
     errorSpy.mockRestore();
   });
 
-  it('leaves a Homebrew install to Homebrew and names its update command', async () => {
+  it.each(['happier-cli', 'happier'])('leaves a Homebrew install of the %s formula to Homebrew and names its update command', async (formula) => {
     const { logs } = await runSelfUpdate({
-      invokedPath: '/opt/homebrew/Cellar/happier/0.2.12/bin/happier',
+      invokedPath: `/opt/homebrew/Cellar/${formula}/0.2.12/bin/happier`,
       rawArgv: ['happier', 'self', 'update'],
     });
     expect(runManagedCliUpdateMock).not.toHaveBeenCalled();
-    expect(logs).toContain('brew upgrade happier');
+    expect(logs).toContain(`brew upgrade ${formula}`);
+  });
+
+  it('does not treat a keg of some other formula as a Homebrew install of this CLI', async () => {
+    await runSelfUpdate({
+      invokedPath: '/opt/homebrew/Cellar/happier-cli-extras/0.2.12/bin/happier',
+      rawArgv: ['happier', 'self', 'update'],
+    });
+    expect(runManagedCliUpdateMock).toHaveBeenCalledTimes(1);
   });
 
   it('recognises the Homebrew keg from the compiled binary path when argv only names the embedded bundle', async () => {
@@ -190,7 +198,7 @@ describe('happier self update for binary installs', () => {
     // resolved executable) says where the payload was installed.
     const originalExecPath = process.execPath;
     Object.defineProperty(process, 'execPath', {
-      value: '/opt/homebrew/Cellar/happier/0.2.12/libexec/happier',
+      value: '/opt/homebrew/Cellar/happier-cli/0.2.12/libexec/happier',
       configurable: true,
       writable: true,
     });
@@ -200,7 +208,7 @@ describe('happier self update for binary installs', () => {
         rawArgv: ['happier', 'self', 'update'],
       });
       expect(runManagedCliUpdateMock).not.toHaveBeenCalled();
-      expect(logs).toContain('brew upgrade happier');
+      expect(logs).toContain('brew upgrade happier-cli');
     } finally {
       Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true, writable: true });
     }

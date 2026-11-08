@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   HAPPIER_MIN_MACOS,
   HOMEBREW_FORMULA_MIN_CLI_VERSION,
+  HOMEBREW_FORMULA_NAME,
   renderHappierCaskFromRelease,
   renderHappierFormulaFromRelease,
 } from './render-homebrew-packages.mjs';
@@ -104,12 +105,32 @@ test('the cask and the formula declare the same macOS minimum, which is the desk
   assert.match(renderFixtureFormula(), new RegExp(`    depends_on macos: :${HAPPIER_MIN_MACOS.symbol}\n`));
 });
 
-test('refuses a CLI release older than the first Homebrew-aware one (its self update and service would not defer to Homebrew)', () => {
-  assert.equal(HOMEBREW_FORMULA_MIN_CLI_VERSION, '0.2.13');
+test('refuses a CLI release older than the first one that recognises the happier-cli keg (its self update and service would not defer to Homebrew)', () => {
+  assert.equal(HOMEBREW_FORMULA_MIN_CLI_VERSION, '0.2.21');
   assert.throws(
     () => renderHappierFormulaFromRelease({ release: fixture.cli.release, checksumsText: fixture.cli.checksums }),
-    /cli-v0\.2\.12.*0\.2\.13/,
+    /cli-v0\.2\.12.*0\.2\.21/,
   );
+});
+
+test('the CLI formula is happier-cli, distinct from the happier cask, and its caveat names the matching upgrade', () => {
+  assert.equal(HOMEBREW_FORMULA_NAME, 'happier-cli');
+  const formula = renderFixtureFormula();
+  assert.match(formula, /^class HappierCli < Formula$/m);
+  assert.match(formula, /brew upgrade happier-cli`/);
+  assert.doesNotMatch(formula, /brew upgrade happier`/);
+  // The installed command stays `happier`.
+  assert.match(formula, /bin\.install_symlink libexec\/"happier"/);
+  const cask = renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums });
+  assert.match(cask, /^cask "happier" do$/m);
+});
+
+test('the CLI accepts the formula name the generator renders as its own Homebrew keg', () => {
+  const source = readFileSync(`${repoRoot}apps/cli/src/cli/runtime/update/cliUpdateFacts.ts`, 'utf8');
+  const pattern = /function isHappierHomebrewFormula\(formula: string\): boolean \{\n  return (\/.+\/u)\.test\(formula\);/.exec(source);
+  assert.ok(pattern, 'isHappierHomebrewFormula keeps its one-regex shape');
+  const regex = new RegExp(pattern[1].slice(1, -2), 'u');
+  assert.ok(regex.test(HOMEBREW_FORMULA_NAME));
 });
 
 test('the formula requires the macOS release the CLI binary is built for, on macOS only', () => {

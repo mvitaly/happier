@@ -56,9 +56,12 @@ function resolveRunningCliInstallSource(params: Readonly<{
     : { installSource: 'other', packageManagerCommand: null };
 }
 
-/** This CLI's Homebrew formulae: `happier`, and its versioned/channel variants (`happier@preview`). */
+/**
+ * This CLI's Homebrew formulae: `happier-cli` (the tap's formula; the desktop cask owns `happier`),
+ * the earlier `happier`, and their versioned/channel variants (`happier-cli@preview`).
+ */
 function isHappierHomebrewFormula(formula: string): boolean {
-  return /^happier(?:@[a-z0-9][a-z0-9.-]*)?$/u.test(formula);
+  return /^happier(?:-cli)?(?:@[a-z0-9][a-z0-9.-]*)?$/u.test(formula);
 }
 
 /**
